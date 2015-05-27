@@ -9,6 +9,7 @@ class Payments extends CI_Controller {
 		$this->load->model('rules_model', 'rules');
 		$this->load->model('users_model', 'users');
 		$this->load->model('concepts_model', 'concepts');
+		$this->load->model('payments_model', 'payments');
 	}
 
 	public function index()
@@ -45,15 +46,43 @@ class Payments extends CI_Controller {
 				"rule_id" => $this->input->post('rule'),
 				"monto_total" => $this->input->post('total_amount')
 			);
-			// $this->concepts->insert_new( $new_concept );
-			$this->process_payments();
+			$concept_id = $this->concepts->insert_new( $new_concept );
+			$this->process_payments( $concept_id );
 		}
 	}
 
-	private function process_payments()
+	private function process_payments( $concept_id )
 	{
 		$rule_specifications = $this->rules->get_specifications( $this->input->post('rule') );
-		exit( json_encode( $rule_specifications ) );
+		foreach ($rule_specifications as $rule) {
+			if($rule->user_id == $this->input->post("user_id")){
+				$bill=array(
+					"user_id" => $this->input->post("user_id"),
+					"concept_id" => $concept_id,
+					"monto" => $this->input->post("total_amount")
+				);
+				$this->payments->insert_single( "cuentas_pagadas", $bill );
+			} else {
+				$arr = explode("/", $rule->percentage);
+				$percentage = $arr[0]/$arr[1];
+				$ammount = $this->input->post('total_amount')*$percentage;
+				$por_pagar=array(
+					"user_id" => $rule->user_id,
+					"concept_id" => $concept_id,
+					"proveedor_id" => $this->input->post("user_id"),
+					"monto" => $ammount
+				);
+				$this->payments->insert_single( "cuentas_por_pagar", $por_pagar );
+
+				$por_cobrar=array(
+					"user_id" => $this->input->post("user_id"),
+					"concept_id" => $concept_id,
+					"acreedor_id" => $rule->user_id,
+					"monto" => $ammount
+				);
+				$this->payments->insert_single( "cuentas_por_cobrar", $por_cobrar );
+			}
+		}
 	}
 
 }
